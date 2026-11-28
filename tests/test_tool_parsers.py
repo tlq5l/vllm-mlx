@@ -1229,6 +1229,18 @@ class TestAutoToolParser:
         args = json.loads(result.tool_calls[0]["arguments"])
         assert args == {"city": "Reykjavik"}
 
+    @pytest.mark.parametrize("as_array", [False, True], ids=["object", "array"])
+    @pytest.mark.parametrize("parameters", [None, True, "hello", [False, "hello"]])
+    def test_raw_json_parameters_are_serialized_as_json(
+        self, parser, as_array, parameters
+    ):
+        call = {"name": "inspect", "parameters": parameters}
+        result = parser.extract_tool_calls(json.dumps([call] if as_array else call))
+
+        assert result.tools_called
+        assert len(result.tool_calls) == 1
+        assert json.loads(result.tool_calls[0]["arguments"]) == parameters
+
     def test_detects_python_tag_parameters(self, parser):
         """A <|python_tag|> prefix must not block the raw JSON fallback."""
         text = (
@@ -1250,6 +1262,18 @@ class TestAutoToolParser:
         assert result.tools_called
         args = json.loads(result.tool_calls[0]["arguments"])
         assert args == {"a": 1}
+
+    @pytest.mark.parametrize("as_array", [False, True], ids=["object", "array"])
+    @pytest.mark.parametrize("arguments", ['{ "a": 1 }', ""])
+    def test_raw_json_explicit_argument_strings_are_preserved(
+        self, parser, as_array, arguments
+    ):
+        call = {"name": "inspect", "arguments": arguments, "parameters": {"b": 2}}
+        result = parser.extract_tool_calls(json.dumps([call] if as_array else call))
+
+        assert result.tools_called
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0]["arguments"] == arguments
 
     def test_no_tool_call(self, parser):
         """Test text without tool calls."""

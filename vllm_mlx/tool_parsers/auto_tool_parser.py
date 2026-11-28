@@ -327,12 +327,22 @@ class AutoToolParser(ToolParser):
                 tools_called=False, tool_calls=[], content=model_output
             )
 
+    @staticmethod
+    def _raw_json_arguments(call: dict[str, Any]) -> str:
+        """Serialize parameters while preserving explicit arguments."""
+        if "arguments" in call:
+            args = call["arguments"]
+            if isinstance(args, dict):
+                return json.dumps(args, ensure_ascii=False)
+            return str(args)
+        return json.dumps(call.get("parameters", {}), ensure_ascii=False)
+
     def _parse_raw_json_tool_calls(self, text: str) -> list[dict[str, Any]]:
         """
         Parse raw JSON tool calls from text.
 
         Handles:
-        - Single JSON object: {"name": "func", "arguments": {...}}
+        - Single JSON object with a tool name and optional arguments or parameters
         - JSON array: [{...}, {...}]
         """
         if not text:
@@ -351,16 +361,11 @@ class AutoToolParser(ToolParser):
                             # Support "name" and "type" fields (Granite)
                             func_name = item.get("name") or item.get("type")
                             if func_name:
-                                args = item.get("arguments", item.get("parameters", {}))
                                 tool_calls.append(
                                     {
                                         "id": generate_tool_id(),
                                         "name": func_name,
-                                        "arguments": (
-                                            json.dumps(args, ensure_ascii=False)
-                                            if isinstance(args, dict)
-                                            else str(args)
-                                        ),
+                                        "arguments": self._raw_json_arguments(item),
                                     }
                                 )
                     return tool_calls
@@ -391,16 +396,11 @@ class AutoToolParser(ToolParser):
                             # Support both "name" and "type" fields
                             func_name = obj.get("name") or obj.get("type")
                             if func_name:
-                                args = obj.get("arguments", obj.get("parameters", {}))
                                 tool_calls.append(
                                     {
                                         "id": generate_tool_id(),
                                         "name": func_name,
-                                        "arguments": (
-                                            json.dumps(args, ensure_ascii=False)
-                                            if isinstance(args, dict)
-                                            else str(args)
-                                        ),
+                                        "arguments": self._raw_json_arguments(obj),
                                     }
                                 )
                     except json.JSONDecodeError:
